@@ -180,6 +180,10 @@ public class ExchangeMoney {
         
         int source = java.util.Arrays.asList(currency).indexOf(vx);
         int target = java.util.Arrays.asList(currency).indexOf(vy);
+
+        if (source == -1 || target == -1) {
+        throw new InvalidInputException("Error: Source or target currency not found in currency list.");
+        }
         
         List<Integer> cycle = new java.util.ArrayList<>();
         cycle.add(source);
@@ -201,6 +205,51 @@ public class ExchangeMoney {
         bestRate = Math.pow(10, -dist[source][target]);
         
         return this;
+    }
+    
+    
+    private void validateInput(String[] header, String[] preData){
+        int n = Integer.parseInt(header[0].trim());
+        
+        if(header.length -1 != n){
+            throw new InvalidInputException(
+                "Error: Invalid Input. Currency count does not match the number of nodes provide.");
+        }
+        
+        for(int i = 0; i<n; i++){
+        String[] values = preData[i].trim().split("\\s+");   
+        if (values.length != n) {
+            throw new InvalidInputException(
+                "Error: Incomplete row for currency " + header[i + 1].trim() +
+                ". Each row must have exactly " + n + " values.");
+        }
+            
+            for(int j = 0; j < n; j++) {
+                double rate;
+                try {
+                    rate = Double.parseDouble(values[j]);
+                } catch (NumberFormatException e) {
+                    // Case 4: non-numeric entry
+                    throw new InvalidInputException(
+                        "Error: Invalid numeric value in exchange matrix (row " + (i + 1) +
+                        ", col " + (j + 1) + ").");
+
+            }
+             // Case 3: negative rate
+            if (rate < 0) {
+                throw new InvalidInputException(
+                    "Error: Invalid exchange rate detected. Rates must be positive numbers.");
+            }
+
+            // self-rate must be 1
+            if (i == j && Math.abs(rate - 1.0) > 1e-9) {
+                throw new InvalidInputException(
+                    "Error: Currency " + header[i + 1].trim() + " must have a self exchange rate of 1.");
+            }
+        
+             
+            }
+        }            
     }
     
     
@@ -228,6 +277,9 @@ public class ExchangeMoney {
         
         
         //Call exchangeMoney method
+    try {
+        result.validateInput(header, data);   // <-- check everything first
+
         result.exchangeMoney(header, data);
         if(result.arbitrage){
             System.out.println("Arbitrage detected!");
@@ -235,20 +287,34 @@ public class ExchangeMoney {
             System.out.printf("Profit: %.2f%%.\n", result.bestRate);
         }
         else{
-            System.out.println("No arbitrage detected !!!");
+            System.out.println("No arbitrage detected.");
             System.out.println("Enter Source Currency: ");
             String vx = keyboard.nextLine().trim();
-            
+
             System.out.println("Enter Target Currency: ");
             String vy = keyboard.nextLine().trim();
-            
+
             result.BestConversionRate(header, data, vx, vy);
             System.out.printf("Best conversion rate from %s to %s: %.4f%n", vx, vy, result.bestRate);
             System.out.println("Best path: " + result.bestPath + ".");
         }
+    } catch (InvalidInputException e) {
+        System.out.println(e.getMessage());
+    } catch (NumberFormatException e) {
+        System.out.println("Error: Invalid input format.");
+    }
 
         //Close the keyboard
         keyboard.close();
     }
   
+}
+
+
+
+
+class InvalidInputException extends RuntimeException {
+    public InvalidInputException(String message) {
+        super(message);
+    }
 }
