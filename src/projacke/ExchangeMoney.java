@@ -249,7 +249,6 @@ public class ExchangeMoney {
 
         //Close the keyboard
         keyboard.close();
-        //test 2
     }
   
 }
