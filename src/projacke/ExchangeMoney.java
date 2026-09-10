@@ -236,7 +236,7 @@ public class ExchangeMoney {
 
             }
              // Case 3: negative rate
-            if (rate < 0) {
+            if (rate <= 0) {
                 throw new InvalidInputException(
                     "Error: Invalid exchange rate detected. Rates must be positive numbers.");
             }
