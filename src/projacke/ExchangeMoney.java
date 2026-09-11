@@ -12,6 +12,21 @@ import java.util.List;
 
 
 public class ExchangeMoney {
+    // Flip this to false to hide trace output AND skip the pauses below
+    // (e.g. for a clean, fast run when testing your actual results)
+    private static final boolean TRACE = true;
+
+    // Small pause so trace output is readable during a live demo recording.
+    // Does nothing if TRACE is false.
+    private static void pause(int ms) {
+        if (!TRACE) return;
+        try {
+            Thread.sleep(ms);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
     // Fields shared by both Task 1 and Task 2 results:
     // arbitrage - true if a negative cycle (arbitrage opportunity) was detected
     // bestPath  - the currency sequence found (an arbitrage cycle for Task 1,
@@ -52,6 +67,9 @@ public class ExchangeMoney {
                 rateMatrix[i][j] = Double.parseDouble(temp[j]);
             }
         }
+
+        if (TRACE) System.out.println("[Task 1] Parsed " + n + " currencies: " + String.join(", ", currency));
+        pause(300);
         
         // Convert every rate into a negative-log weight (multiplication -> addition)
         for(int i = 0; i<n; i++){
@@ -59,6 +77,9 @@ public class ExchangeMoney {
                 weight[i][j] = -Math.log10(rateMatrix[i][j]);
             }
         }
+
+        if (TRACE) System.out.println("[Task 1] Converted rates to -log10 edge weights.");
+        pause(300);
         
         // Bellman-Ford setup:
         // dist[v]   = best known total weight to reach currency v
@@ -73,6 +94,9 @@ public class ExchangeMoney {
             dist[v] = 0.0f;
             parent[v] = -1;
         }
+
+        if (TRACE) System.out.println("[Task 1] Initialized dist[] to 0 for all nodes (multi-source setup).");
+        pause(300);
         
         // Relax all edges (n - 1) times. After this, dist[] holds correct shortest
         // (cheapest) known distances, PROVIDED no negative cycle exists.
@@ -85,7 +109,12 @@ public class ExchangeMoney {
                     }
                 }
             }
+            if (TRACE) System.out.println("[Task 1] Completed relaxation pass " + (i + 1) + " of " + (n - 1) + ".");
+            pause(200); // one small pause per pass - fine since there are only n-1 of these
         }
+
+        if (TRACE) System.out.println("[Task 1] Distances after relaxation: " + java.util.Arrays.toString(dist));
+        pause(300);
         
         // One extra pass: if any edge can still be relaxed after (n - 1) passes,
         // that proves a negative cycle exists somewhere reachable from that edge.
@@ -103,6 +132,15 @@ public class ExchangeMoney {
                 break;
             }
         }
+
+        if (TRACE) {
+            if (this.arbitrage) {
+                System.out.println("[Task 1] Extra pass found further relaxation at node: " + currency[cycleNode] + " -> negative cycle exists.");
+            } else {
+                System.out.println("[Task 1] Extra pass found no further relaxation -> no arbitrage.");
+            }
+        }
+        pause(300);
         
         // If a negative cycle was found, reconstruct it and compute its profit
         if(this.arbitrage){
@@ -126,6 +164,13 @@ public class ExchangeMoney {
             }while(curr != start);
             
             cycle.add(0, start);
+
+            if (TRACE) {
+                StringBuilder rawCycle = new StringBuilder();
+                for (int idx : cycle) rawCycle.append(currency[idx]).append(" ");
+                System.out.println("[Task 1] Reconstructed cycle node sequence: " + rawCycle.toString().trim());
+            }
+            pause(300);
             
             // Build the human-readable "A -> B -> C -> A" style string
             StringBuilder pathBuilder = new StringBuilder();
@@ -146,8 +191,14 @@ public class ExchangeMoney {
                 int from  = cycle.get(i);
                 int to  = cycle.get(i +1);
                 product *= rateMatrix[from][to];
+                if (TRACE) System.out.println("[Task 1] Multiplying rate " + currency[from] + " -> " + currency[to]
+                        + " = " + rateMatrix[from][to] + " (running product: " + product + ")");
+                pause(200); // small pause per multiplication step - cycles are short, so this is fine
             }
             bestRate = (product - 1) *100; // convert to a percentage profit
+
+            if (TRACE) System.out.println("[Task 1] Final round-trip product: " + product + " -> profit: " + bestRate + "%");
+            pause(300);
             
         }
         
@@ -176,12 +227,18 @@ public class ExchangeMoney {
                 rateMatrix[i][j] = Double.parseDouble(temp[j]);
             }
         }
+
+        if (TRACE) System.out.println("[Task 2] Parsed " + n + " currencies: " + String.join(", ", currency));
+        pause(300);
         
         for(int i = 0; i<n; i++){
             for(int j =0; j<n; j++){
                 weight[i][j] = -Math.log10(rateMatrix[i][j]);
             }
         }
+
+        if (TRACE) System.out.println("[Task 2] Converted rates to -log10 edge weights.");
+        pause(300);
         
         
         // dist[i][j] = best known total weight from currency i to currency j
@@ -199,11 +256,15 @@ public class ExchangeMoney {
                 next[i][j] = (j==i)? -1:j;
             }
         }
+
+        if (TRACE) System.out.println("[Task 2] Initialized dist[][] from direct rates and next[][] pointers.");
+        pause(300);
         
         // Core Floyd-Warshall loop: try every currency k as a possible stopover
         // between every pair (i, j), and keep whichever route is cheaper.
         // k MUST be the outermost loop for the algorithm to be correct.
         for(int k = 0; k<n; k++){
+            boolean improvedThisRound = false;
             for(int i = 0; i<n; i++){
                 for(int j = 0; j<n; j++){
                     if(dist[i][k] + dist[k][j] < dist[i][j] ){ // routing through k is cheaper
@@ -211,9 +272,13 @@ public class ExchangeMoney {
                         // Our first hop toward j is now whatever our first hop
                         // toward k already was - not k itself
                         next[i][j] = next[i][k];
+                        improvedThisRound = true;
                     }
                 }
             }
+            if (TRACE) System.out.println("[Task 2] Considered " + currency[k] + " as a stopover"
+                    + (improvedThisRound ? " -> found a cheaper route through it." : " -> no improvement."));
+            pause(250); // one pause per candidate stopover currency - only n of these total
         }
         // Look up the indices of the requested source (vx) and target (vy) currencies
         int source = java.util.Arrays.asList(currency).indexOf(vx);
@@ -224,6 +289,10 @@ public class ExchangeMoney {
         if (source == -1 || target == -1) {
         throw new InvalidInputException("Error: Source or target currency not found in currency list.");
         }
+
+        if (TRACE) System.out.println("[Task 2] Floyd-Warshall complete. Best log-weight from "
+                + vx + " to " + vy + ": " + dist[source][target]);
+        pause(300);
         
         
         // Reconstruct the path forward, starting at source and repeatedly asking
@@ -246,6 +315,9 @@ public class ExchangeMoney {
         bestPath = pathBuilder.toString();
         // Undo the -log10() transform to turn the total weight back into a real rate
         bestRate = Math.pow(10, -dist[source][target]);
+
+        if (TRACE) System.out.println("[Task 2] Reconstructed path: " + bestPath + " | rate: " + bestRate);
+        pause(300);
         
         return this;
     }
@@ -256,6 +328,9 @@ public class ExchangeMoney {
     // rule from the assignment spec is broken.
     private void validateInput(String[] header, String[] preData){
         int n = Integer.parseInt(header[0].trim());
+
+        if (TRACE) System.out.println("[Validation] Checking input for " + n + " currencies...");
+        pause(200);
         
         // Case 1: the number of currency names given doesn't match the declared count n
         if(header.length -1 != n){
@@ -297,7 +372,10 @@ public class ExchangeMoney {
         
              
             }
-        }            
+        }
+
+        if (TRACE) System.out.println("[Validation] Input passed all checks.");
+        pause(300);
     }
     
     
