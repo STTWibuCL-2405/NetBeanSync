@@ -14,17 +14,26 @@ currencies to solve two primary graph tasks:
    to calculate the most optimal conversion rate and path between two 
    specified currencies (executed only if no arbitrage exists).
 
+FEATURES & INPUT MODES
+----------------------
+* Mode 1 (Manual Matrix Input): Manually enter a custom currency exchange 
+  matrix to test synthetic datasets, edge cases, or engineered arbitrage scenarios.
+* Mode 2 (Live API Data): Fetch real-time exchange rates directly from 
+  exchangeratesapi.io. Simply specify currency codes (e.g., USD, EUR, VND, JPY), 
+  and the program automatically constructs the full exchange rate cross-matrix.
+
 
 PREREQUISITES
 -------------
-* Java Development Kit (JDK): Version 8 or higher.
+* Java Development Kit (JDK): Version 11 or higher (uses java.net.http.HttpClient).
+* Internet Connection (Required only if running Mode 2 for Live API rates).
 * An IDE (such as NetBeans, Eclipse, IntelliJ IDEA) or command line/terminal.
 
 
 FILE STRUCTURE
 --------------
-* ExchangeMoney.java — Main program containing input parsing, validation logic,
-                       Bellman-Ford, and Floyd-Warshall algorithms.
+* ExchangeMoney.java — Main program containing graph algorithms (Bellman-Ford & 
+                       Floyd-Warshall), input validation, and live API fetcher.
 * InvalidInputException — Custom runtime exception handling input validation errors.
 
 
@@ -48,15 +57,31 @@ Method 2: NetBeans / Eclipse / IntelliJ IDEA
 3. Right-click ExchangeMoney.java and select "Run File" (or press Shift + F6 in NetBeans).
 
 
-INPUT FORMAT EXAMPLE
---------------------
-When prompted, paste or type the header line followed by the exchange rate matrix.
+INPUT EXAMPLES & PROGRAM EXECUTION
+----------------------------------
 
-Header Line Format: N, CURR1, CURR2, ..., CURRN
-Matrix Format:      N rows, each containing N space-separated positive rates.
+--- EXAMPLE 1: Live API Data (Mode 2) ---
 
-Sample Input:
-5, NZD, VND, JPY, CNY, AUD
+Select Mode: 2
+Enter Header: 5, USD, NZD, EUR, JPY, VND
+
+Program Output:
+Fetching live exchange rates from exchangeratesapi.io...
+Live rates retrieved successfully.
+No arbitrage detected.
+Enter Source Currency: NZD
+Enter Target Currency: VND
+
+Result Output:
+Best conversion rate from NZD to VND: [Calculated Live Rate]
+Best path: NZD -> EUR -> VND.
+
+
+--- EXAMPLE 2: Manual Matrix Input (Mode 1) ---
+
+Select Mode: 1
+Enter Header: 5, NZD, VND, JPY, CNY, AUD
+Enter Matrix:
 1.0000 1.6630 1.5050 0.9128 151.232
 0.5893 1.0000 0.8957 0.5433 90.0190
 0.6644 1.1164 1.0000 0.6065 100.486

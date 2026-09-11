@@ -5,6 +5,12 @@
 package projacke;
 import java.util.Scanner;
 import java.util.List;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.net.URI;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 /**
  *
  * @author tiend
@@ -15,6 +21,10 @@ public class ExchangeMoney {
     // Flip this to false to hide trace output AND skip the pauses below
     // (e.g. for a clean, fast run when testing your actual results)
     private static final boolean TRACE = true;
+
+    // Base currency used when fetching live rates from the API
+    private static final String BASE_CURRENCY = "EUR"; // exchangeratesapi.io free tier only allows EUR as base
+    private static final String API_KEY = "f253109d33f82a66b0f81cd788134c11";
 
     // Small pause so trace output is readable during a live demo recording.
     // Does nothing if TRACE is false.
@@ -377,6 +387,92 @@ public class ExchangeMoney {
         if (TRACE) System.out.println("[Validation] Input passed all checks.");
         pause(300);
     }
+
+    //-------------------------------------------------------------------------------------------------
+    // Live API support: fetches real exchange rates from exchangeratesapi.io
+    // (200+ world currencies, including ones ECB-only sources like Frankfurter
+    // don't cover, e.g. VND). The free tier only allows EUR as the base
+    // currency, so we fetch EUR-based rates and derive the full matrix via
+    // cross-rate calculation:
+    //
+    //      rate[i][j] = (rate from EUR to currency j) / (rate from EUR to currency i)
+    //
+    // This always produces a mathematically consistent matrix (self-rate
+    // exactly 1, rate[i][j] * rate[j][i] == 1 exactly), so Task 1 will
+    // almost always report "No arbitrage" - as expected with real data.
+    private static double[][] fetchRates(String[] currencies) throws Exception {
+        int n = currencies.length;
+        double[] toBase = new double[n]; // rate from BASE_CURRENCY to currencies[i]
+
+        String url = "https://api.exchangeratesapi.io/v1/latest?access_key=" + API_KEY;
+
+        HttpClient client = HttpClient.newHttpClient();
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .build();
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+        if (response.statusCode() != 200) {
+            throw new InvalidInputException(
+                    "Error: Failed to fetch live exchange rates (HTTP " + response.statusCode() + ").");
+        }
+
+        String json = response.body();
+
+        // exchangeratesapi.io returns {"success":false, "error": {...}} on failure
+        // (e.g. invalid/missing API key) even with an HTTP 200 status.
+        if (json.contains("\"success\":false") || json.contains("\"success\": false")) {
+            throw new InvalidInputException(
+                    "Error: exchangeratesapi.io request failed - check your API key and plan limits.");
+        }
+
+        for (int i = 0; i < n; i++) {
+            String code = currencies[i].trim().toUpperCase();
+
+            if (code.equals(BASE_CURRENCY)) {
+                toBase[i] = 1.0; // base currency against itself
+                continue;
+            }
+
+            Pattern p = Pattern.compile("\"" + code + "\":\\s*([\\d.]+)");
+            Matcher m = p.matcher(json);
+
+            if (!m.find()) {
+                throw new InvalidInputException(
+                        "Error: Currency not found in live API data: " + code);
+            }
+            toBase[i] = Double.parseDouble(m.group(1));
+        }
+
+        double[][] matrix = new double[n][n];
+        for (int i = 0; i < n; i++) {
+            for (int j = 0; j < n; j++) {
+                matrix[i][j] = toBase[j] / toBase[i];
+            }
+        }
+
+        return matrix;
+    }
+
+    // Converts a numeric rate matrix into the String[] row format that
+    // exchangeMoney()/BestConversionRate() expect (space-separated values per row).
+    private static String[] matrixToDataRows(double[][] matrix) {
+        int n = matrix.length;
+        String[] data = new String[n];
+
+        for (int i = 0; i < n; i++) {
+            StringBuilder row = new StringBuilder();
+            for (int j = 0; j < n; j++) {
+                row.append(matrix[i][j]);
+                if (j < n - 1) {
+                    row.append(" ");
+                }
+            }
+            data[i] = row.toString();
+        }
+
+        return data;
+    }
     
     
     //-------------------------------------------------------------------------------------------------    
@@ -386,43 +482,68 @@ public class ExchangeMoney {
         
         //Call Scanner
         Scanner keyboard = new Scanner(System.in);
-        
-        //input format
-        System.out.println("Please enter the header line followed by the exchange rate matrix:");
-        System.out.println("Format Example:");
-        System.out.println("5, NZD, VND, JPY, CNY, AUD");
-        System.out.println("1.0000 1.6630 1.5050 0.9128 151.232");
-        System.out.println("0.5893 1.0000 0.8957 0.5433 90.0190");
-        System.out.println("...");
+
+        // Ask the user which data source to use
+        System.out.println("Choose input mode:");
+        System.out.println("1. Use my own data (type the full exchange rate matrix)");
+        System.out.println("2. Use real-world API data (only type the currency list)");
+        System.out.print("Enter 1 or 2: ");
+        String mode = keyboard.nextLine().trim();
+
         System.out.println("------------------------------------------------------------");
-        
-        //First Input and split it
+        System.out.println("Enter the number of currencies and their codes, e.g.:");
+        System.out.println("5, USD, NZD, AUD, EUR, JPY");
         String firstLine = keyboard.nextLine();
         String[] header = firstLine.trim().split(",\\s+");
-        
-        
-        
-        //Take number Of currencies to have more input
+
         int n;
         try {
             n = Integer.parseInt(header[0].trim());
         } catch (NumberFormatException e) {
-            throw new InvalidInputException("Error: Invalid numeric value for currency count.");
+            System.out.println("Error: Invalid numeric value for currency count.");
+            keyboard.close();
+            return;
         }
 
-        // Validate currency count matches header length BEFORE reading remaining lines
         if (header.length - 1 != n) {
-            throw new InvalidInputException(
-                "Error: Invalid Input. Currency count does not match the number of nodes provided.");
+            System.out.println("Error: Invalid Input. Currency count does not match the number of nodes provided.");
+            keyboard.close();
+            return;
         }
-        
-        String[] data = new String[n];
-        for(int i = 0; i < n; i++) {
-            data[i] = keyboard.nextLine();
-        }
-        
 
-        
+        String[] data;
+
+        switch (mode) {
+            case "2":
+                // Real-world API mode: only the currency list is needed
+                String[] currencies = java.util.Arrays.copyOfRange(header, 1, header.length);
+                try {
+                    System.out.println("Fetching live exchange rates from exchangeratesapi.io...");
+                    double[][] matrix = fetchRates(currencies);
+                    data = matrixToDataRows(matrix);
+                    System.out.println("Live rates retrieved successfully.");
+                } catch (Exception e) {
+                    System.out.println("Error: Failed to fetch live exchange rates - " + e.getMessage());
+                    keyboard.close();
+                    return;
+                }
+                break;
+
+            case "1":
+                // Manual mode: type each row of the matrix as before
+                System.out.println("Enter " + n + " rows of exchange rates, one row per currency:");
+                data = new String[n];
+                for (int i = 0; i < n; i++) {
+                    data[i] = keyboard.nextLine();
+                }
+                break;
+
+            default:
+                System.out.println("Error: Invalid mode selected. Please enter 1 or 2.");
+                keyboard.close();
+                return;
+        }
+
         // Overall flow:
         // 1) validate the raw input
         // 2) run Task 1 (arbitrage detection)
