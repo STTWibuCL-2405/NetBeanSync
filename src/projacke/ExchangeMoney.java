@@ -387,13 +387,35 @@ public class ExchangeMoney {
         //Call Scanner
         Scanner keyboard = new Scanner(System.in);
         
+        //input format
+        System.out.println("Please enter the header line followed by the exchange rate matrix:");
+        System.out.println("Format Example:");
+        System.out.println("5, NZD, VND, JPY, CNY, AUD");
+        System.out.println("1.0000 1.6630 1.5050 0.9128 151.232");
+        System.out.println("0.5893 1.0000 0.8957 0.5433 90.0190");
+        System.out.println("...");
+        System.out.println("------------------------------------------------------------");
+        
         //First Input and split it
-        System.out.println("Input: ");
         String firstLine = keyboard.nextLine();
         String[] header = firstLine.trim().split(",\\s+");
         
+        
+        
         //Take number Of currencies to have more input
-        int n = Integer.parseInt(header[0]);
+        int n;
+        try {
+            n = Integer.parseInt(header[0].trim());
+        } catch (NumberFormatException e) {
+            throw new InvalidInputException("Error: Invalid numeric value for currency count.");
+        }
+
+        // Validate currency count matches header length BEFORE reading remaining lines
+        if (header.length - 1 != n) {
+            throw new InvalidInputException(
+                "Error: Invalid Input. Currency count does not match the number of nodes provided.");
+        }
+        
         String[] data = new String[n];
         for(int i = 0; i < n; i++) {
             data[i] = keyboard.nextLine();
