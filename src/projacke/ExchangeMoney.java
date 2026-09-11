@@ -491,8 +491,7 @@ public class ExchangeMoney {
         String mode = keyboard.nextLine().trim();
 
         System.out.println("------------------------------------------------------------");
-        System.out.println("Enter the number of currencies and their codes, e.g.:");
-        System.out.println("5, USD, NZD, AUD, EUR, JPY");
+        System.out.println("Enter the number of currencies and their codes, (e.g.: 5, USD, NZD, AUD, EUR, JPY)");
         String firstLine = keyboard.nextLine();
         String[] header = firstLine.trim().split(",\\s+");
 
